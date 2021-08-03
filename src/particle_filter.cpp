@@ -18,20 +18,11 @@
 #include <vector>
 
 #include "helper_functions.h"
-
+#define ZERO_LIMIT 0.00001
 using std::string;
 using std::vector;
 
 void ParticleFilter::init(int N, double x, double y, double theta, double std[]) {
-  /**
-   * TODO: Set the number of particles. Initialize all particles to
-   *   first position (based on estimates of x, y, theta and their uncertainties
-   *   from GPS) and all weights to 1.
-   * TODO: Add random Gaussian noise to each particle.
-   * NOTE: Consult particle_filter.h for more information about this method
-   *   (and others in this file).
-   */
-
   // Set the number of particles
   num_particles = N;
 
@@ -79,15 +70,28 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
   for (int i = 0; i < num_particles; ++i) {
     // Calculate predicted positions/orientation and add random gaussian noise
-    float x_pred =
-        particles[i].x +
-        velocity / yaw_rate * (sin(particles[i].theta + yaw_rate * delta_t) - sin(particles[i].theta)) +
-        random_gauss_x(gen);
-    float y_pred =
-        particles[i].y +
-        velocity / yaw_rate * (cos(particles[i].theta) - cos(particles[i].theta + yaw_rate * delta_t)) +
-        random_gauss_y(gen);
-    float theta_pred = particles[i].theta + yaw_rate * delta_t + random_gauss_theta(gen);
+    float x_pred = 0;
+    float y_pred = 0;
+    float theta_pred = 0;
+
+    // If yaw_rate isn't zero
+    if (std::fabs(yaw_rate) > ZERO_LIMIT) {
+      x_pred =
+          particles[i].x +
+          velocity / yaw_rate * (sin(particles[i].theta + yaw_rate * delta_t) - sin(particles[i].theta)) +
+          random_gauss_x(gen);
+      y_pred =
+          particles[i].y +
+          velocity / yaw_rate * (cos(particles[i].theta) - cos(particles[i].theta + yaw_rate * delta_t)) +
+          random_gauss_y(gen);
+      theta_pred = particles[i].theta + yaw_rate * delta_t + random_gauss_theta(gen);
+    }
+    // If yaw_rate is zero
+    else {
+      x_pred = particles[i].x + velocity * delta_t * cos(particles[i].theta) + random_gauss_x(gen);
+      y_pred = particles[i].y + velocity * delta_t * sin(particles[i].theta) + random_gauss_y(gen);
+      theta_pred = particles[i].theta + random_gauss_theta(gen);
+    }
 
     // Constrain theta_pred between 0 and 2*PI
     theta_pred = fmod(theta_pred, 2.0 * M_PI);
@@ -101,18 +105,9 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
   // Print("Predict",std::to_string(particles[0].id));
 }
 
-//
 // Find and associate the nearst predicted map landmark to observations using the Nearst Neighbor data
 // association technic
 void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, vector<LandmarkObs>& observations) {
-  /**
-   * TODO: Find the predicted measurement that is closest to each
-   *   observed measurement and assign the observed measurement to this
-   *   particular landmark.
-   * NOTE: this method will NOT be called by the grading code. But you will
-   *   probably find it useful to implement this method and use it as a helper
-   *   during the updateWeights phase.
-   */
   for (auto& observation : observations) {
     // Initialize euclidian distance error with max float value
     float best_error = std::numeric_limits<float>::infinity();
@@ -201,10 +196,11 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
   for (int i = 0; i < weights.size(); ++i) {
     weights_sum += weights[i];
   }
-
-  // Normalize weights and update the weights vector in same order as particles vector
-  for (int i = 0; i < weights.size(); ++i) {
-    weights[i] /= weights_sum;
+  if (std::fabs(weights_sum) > ZERO_LIMIT) {
+    // Normalize weights and update the weights vector in same order as particles vector
+    for (int i = 0; i < weights.size(); ++i) {
+      weights[i] /= weights_sum;
+    }
   }
 }
 
